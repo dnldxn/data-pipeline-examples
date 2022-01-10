@@ -1,20 +1,36 @@
-# Experiments with Snowflake
+# Amazon Orders
+
+This demo project incrementally loads a personal Amazon order history into a Snowflake data warehouse.
+
+## Architecture
+
+![Architecture](./design/diagram.png)
 
 
-## Setup the Environment
+## Setup Airflow Locally using Docker
 
-First we need to create an S3 bucket and add some sample data to it.  I've choosen my personal Amazon purchase history as the sample dataset.  You can generate your purchase history at the link below, but keep in mind that it will take 2-3 days for it to finish generate (why Amazon, why?!).
+```bash
+# Start Airflow
+docker compose up airflow-init   # initialize the env, this command will return control when complete
+docker compose up -d
+
+# Shutdown Airflow
+docker-compose down --volumes --remove-orphans
+```
+
+## Setup the Cloud Environment
+
+First we need to generate an Amazon purchase history as the sample dataset.  This can be generated at the link below, but know that it will take 2-3 days for it to finish generate (why Amazon, why?!).
+
+Next create an S3 bucket as a staging area for datasets.
 
 https://www.amazon.com/gp/b2b/reports
 
-### Step 1:  Create an S3 bucket and upload the CSV order history
+### Step 1:  Create an S3 bucket
 
 ```bash
 # Create s3 bucket to hold raw data
 aws s3 mb s3://data-pipeline-practice-snowflake --region us-west-2
-
-# Push Amazon order history to S3 bucket
-aws s3 cp ../data/Retail.OrderHistory.1.csv s3://data-pipeline-practice-snowflake
 ```
 
 ### Step 2:  Create IAM permission policy
@@ -42,7 +58,9 @@ aws iam create-role --role-name snowflake_role --assume-role-policy-document fil
 aws iam attach-role-policy --role-name snowflake_role --policy-arn <value>
 ```
 
-### Step 4:  Create storage integration inside Snowflake
+### Step 4:  Create a Snowflake storage integration
+
+Run these commands from Snowflake
 
 ```sql
 -- Must use the accountadmin role to create a Storage
