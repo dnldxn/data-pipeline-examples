@@ -8,6 +8,6 @@ Data is stored in the `/data` folder, which is not checked into Github.
 
 Example loading and parsing data using Airflow, Snowflake, and Amazon S3
 
-**/kafka-test**
+**/ksqlDB**
 
-Experiments with Kafka and ksqlDB
+Experiments with Kafka and ksqlDB.  Uses a random data generator written in Go to steam data into Kafka for processing.
