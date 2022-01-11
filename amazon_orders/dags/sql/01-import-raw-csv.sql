@@ -1,16 +1,22 @@
--- 01.  Copy the data as raw strings into the staging table: purchases_raw
-COPY INTO purchases_raw
-  FROM @purchases_stage/Retail.OrderHistory.1.csv
-  ON_ERROR = 'skip_file'
-
-  -- Test first using the following option
-  --VALIDATION_MODE = RETURN_10_ROWS
-;
-
--- 02.  Transform and import the data into the data model
 ALTER SESSION SET TIMEZONE = 'UTC';
 
-MERGE INTO address addr_old
+-- 01.  Copy the data as raw strings into the staging table: purchases_raw
+COPY INTO purchases_raw
+FROM (
+  SELECT
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
+    TO_DATE('{{ params.load_dt }}') AS load_dt
+  FROM @purchases_stage/stage/{{ params.load_dt }}
+) 
+ON_ERROR = 'skip_file'
+
+-- Test first using the following option
+--VALIDATION_MODE = RETURN_10_ROWS
+;
+
+
+-- 02.  Merge new records into the Address dimension table
+MERGE INTO address addr
 USING (
   SELECT DISTINCT
       addr_raw,
@@ -18,14 +24,15 @@ USING (
       REGEXP_SUBSTR(REGEXP_REPLACE(addr_raw, ' Primary Phone.*', ''), '\\d{3,}.+') AS address,
       REGEXP_REPLACE(REGEXP_SUBSTR(addr_raw, 'Primary Phone: (.*)', 1, 1, '', 1), '[^0-9]', '') AS phone
   FROM (
-      SELECT DISTINCT LOWER(shipping_addr) AS addr_raw FROM purchases_raw WHERE TRIM(shipping_addr) <> ''
+      SELECT DISTINCT LOWER(shipping_addr) AS addr_raw FROM purchases_raw WHERE load_dt = '{{ params.load_dt }}' AND TRIM(shipping_addr) <> ''
       UNION
-      SELECT DISTINCT LOWER(billing_addr) AS addr_raw FROM purchases_raw WHERE TRIM(billing_addr) <> ''
+      SELECT DISTINCT LOWER(billing_addr) AS addr_raw FROM purchases_raw WHERE load_dt = '{{ params.load_dt }}' AND TRIM(billing_addr) <> ''
   )
 ) addr_new
-ON LOWER(addr_old.addr_raw) = LOWER(addr_new.addr_raw)
+ON LOWER(addr.addr_raw) = LOWER(addr_new.addr_raw)
 WHEN NOT MATCHED THEN 
-    INSERT (addr_raw, name, address, phone) VALUES (
+    INSERT (addr_raw, name, address, phone) 
+    VALUES (
       addr_new.addr_raw,
       addr_new.name,
       addr_new.address,
@@ -34,9 +41,8 @@ WHEN NOT MATCHED THEN
 ;
 
 
-
-INSERT INTO purchase
-VALUES(
+-- 03.  Add new records to the main fact table
+INSERT INTO purchase (
   SELECT
       website,
       order_id,
@@ -64,11 +70,13 @@ VALUES(
       product_nm,
       gift_message,
       gift_sender_nm,
-      gift_recipient_contact_details
+      gift_recipient_contact_details,
+      load_dt
   FROM purchases_raw
   LEFT OUTER JOIN address addr_shipping
     ON LOWER(purchases_raw.shipping_addr) = addr_shipping.addr_raw
   LEFT OUTER JOIN address addr_billing
     ON LOWER(purchases_raw.billing_addr) = addr_billing.addr_raw
+  WHERE load_dt = '{{ params.load_dt }}'
 )
 ;

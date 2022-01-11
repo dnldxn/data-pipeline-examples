@@ -1,7 +1,7 @@
 """
-DAG to reset the initial data environment.  First any temporary delta files will be removed.  Then
-the main Amazon purchases will be split into n delta files ready to be loaded incrementally into
-Snowflake.
+DAG to reset the initial data environment.  Temporary staging files are removed and database tables
+are emptied.  The main Amazon purchases will be split into n delta files ready to be loaded
+incrementally into Snowflake.
 
 Each delta file will be stored as a separate CSV file with a random date assigned.  These files
 will be used to test delta loading into the Snowflake data warehouse.
@@ -10,6 +10,7 @@ will be used to test delta loading into the Snowflake data warehouse.
 from airflow.decorators import dag, task
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.s3_delete_objects import S3DeleteObjectsOperator
+from airflow.providers.snowflake.operators.snowflake import SnowflakeOperator
 
 from datetime import date, datetime, timedelta
 
@@ -60,8 +61,12 @@ def split_file(n: int, input_file: str, output_dir: str):
     tags=['snowflake'],
     schedule_interval=None,
     catchup=False,
+    default_args={
+        'aws_conn_id': 'aws_s3',
+        'snowflake_conn_id': 'snowflake',
+    },
 )
-def init_data(n: int = 5, input_file: str = '/data/Retail.OrderHistory.1.csv', output_dir: str = '/data'):
+def reset(n: int = 5, input_file: str = '/data/Retail.OrderHistory.1.csv', output_dir: str = '/data'):
 
     """
     DAG to reset the environment and prepare the delta files
@@ -71,7 +76,7 @@ def init_data(n: int = 5, input_file: str = '/data/Retail.OrderHistory.1.csv', o
     """
 
     remove_delta_files = BashOperator(
-        task_id="remove_delta_files",
+        task_id="remove_local_delta_files",
         bash_command="rm -rf {{ params.output_dir }}/stage",
     )
 
@@ -79,15 +84,20 @@ def init_data(n: int = 5, input_file: str = '/data/Retail.OrderHistory.1.csv', o
         task_id="make_stage_dir",
         bash_command="mkdir -p {{ params.output_dir }}/stage",
     )
+
+    reset_snowflake_tables = SnowflakeOperator(
+        task_id='reset_snowflake_tables',
+        sql='./sql/00-init-data-model.sql',
+        autocommit=True,
+    )
     
     empty_s3_bucket = S3DeleteObjectsOperator(
         task_id="empty_s3_bucket",
         bucket="data-pipeline-practice-snowflake",
         prefix="stage",
-        aws_conn_id="aws_s3",
     )
 
-    [remove_delta_files, empty_s3_bucket] >> make_stage_dir >> split_file(n, input_file, output_dir)
+    [remove_delta_files, empty_s3_bucket, reset_snowflake_tables] >> make_stage_dir >> split_file(n, input_file, output_dir)
 
 
-dag = init_data()
+dag = reset()

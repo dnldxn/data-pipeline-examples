@@ -4,6 +4,10 @@ Various data pipeline examples using different platforms and tools.  These examp
 
 Data is stored in the `/data` folder, which is not checked into Github.
 
-**/snowflake**
+**/amazon_orders**
 
-Example loading and parsing data using Snowflake and Amazon S3
+Example loading and parsing data using Airflow, Snowflake, and Amazon S3
+
+**/kafka-test**
+
+Experiments with Kafka and ksqlDB

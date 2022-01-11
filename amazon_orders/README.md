@@ -91,28 +91,4 @@ aws iam update-assume-role-policy --role-name snowflake_role --policy-document f
 
 ### Step 6:  Create an external stage
 
-From inside Snowflake
-
-```sql
-USE SCHEMA amazon_purchases.public;
-
-CREATE OR REPLACE FILE FORMAT purchases_csvformat
-  TYPE = 'CSV'
-  FIELD_DELIMITER = ','
-  RECORD_DELIMITER = '\n'
-  SKIP_HEADER = 1
-  FIELD_OPTIONALLY_ENCLOSED_BY  = '"'
-;
-
-CREATE OR REPLACE STAGE purchases_stage
-  STORAGE_INTEGRATION = s3_integration
-  URL = 's3://data-pipeline-practice-snowflake'
-  FILE_FORMAT = purchases_csvformat
-;
-
--- Test the stage is working.  Should list the files in the S3 bucket.
-LIST @purchases_stage;
-
--- Should display a few columns from the purchase CSV file
-SELECT $1, $2, $3 FROM @purchases_stage/Retail.OrderHistory.1.csv LIMIT 5;
-```
+Assuming the above steps were successful, you should now be able to create an external stage to query files stored in S3.  See `dags/sql/00-init-data-model.sql` for an example.
